@@ -5,8 +5,12 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000; // Gunakan PORT dari environment variable jika tersedia
 
+// Middleware untuk melayani file statis dari folder 'public'
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Middleware lainnya
 app.use(cors());
 app.use(bodyParser.json());
 
@@ -28,11 +32,9 @@ app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     const db = readDB();
     const user = db.users.find(u => u.username === username && u.password === password);
-
     if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
     }
-
     res.json({ user });
 });
 
@@ -40,12 +42,10 @@ app.post('/api/login', (req, res) => {
 app.post('/api/register', (req, res) => {
     const { username, password, bio } = req.body;
     const db = readDB();
-
     const existingUser = db.users.find(u => u.username === username);
     if (existingUser) {
         return res.status(400).json({ message: "Username already exists" });
     }
-
     const newUser = {
         id: Date.now(),
         username,
@@ -55,7 +55,6 @@ app.post('/api/register', (req, res) => {
         followers: 0,
         following: 0
     };
-
     db.users.push(newUser);
     writeDB(db);
     res.json({ user: newUser });
@@ -66,8 +65,6 @@ app.get('/api/stories', (req, res) => {
     const type = req.query.type || 'recent';
     const db = readDB();
     let stories = [...db.stories];
-
-    // Dummy trending logic (berdasarkan jumlah like)
     if (type === 'trending') {
         stories.sort((a, b) => {
             const aLikes = db.likes.filter(l => l.storyId === a.id).length;
@@ -77,12 +74,10 @@ app.get('/api/stories', (req, res) => {
     } else {
         stories.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
-
     stories = stories.map(story => {
         const author = db.users.find(u => u.id === story.authorId);
         return { ...story, author };
     });
-
     res.json({ stories });
 });
 
@@ -131,14 +126,12 @@ app.post('/api/stories/:id/like', (req, res) => {
     const storyId = parseInt(req.params.id);
     const { userId } = req.body;
     const db = readDB();
-
     const existingLike = db.likes.find(l => l.storyId === storyId && l.userId === userId);
     if (existingLike) {
         db.likes = db.likes.filter(l => !(l.storyId === storyId && l.userId === userId));
     } else {
         db.likes.push({ storyId, userId });
     }
-
     writeDB(db);
     res.json({ liked: !existingLike });
 });
@@ -210,6 +203,12 @@ app.get('/api/stories/user/:id', (req, res) => {
     res.json({ stories });
 });
 
+// Fallback route untuk handle error 404
+app.use((req, res) => {
+    res.status(404).send("Not Found");
+});
+
+// Jalankan server
 app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
 });
